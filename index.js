@@ -33,8 +33,14 @@ async function run() {
 
 
         // jobs related apis
+        const jobsCollection = client.db('jobPortal').collection('jobs')
 
-
+        // get the data
+        app.get('/jobs', async (req, res) => {
+            const cursor = jobsCollection.find();
+            const result = await cursor.toArray();
+            res.send(result);
+        })
 
 
     } finally {
