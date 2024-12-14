@@ -37,11 +37,27 @@ async function run() {
         const jobApplicationCollection = client.db('jobPortal').collection('job-applications')
 
         // get the data
+        // app.get('/jobs', async (req, res) => {
+        //     const cursor = jobsCollection.find();
+        //     const result = await cursor.toArray();
+        //     res.send(result);
+        // })
+
+        // get jobs data conditionally, if there is an hr email, it will get you only the hr related jobs, otherwise you will get all the data
         app.get('/jobs', async (req, res) => {
-            const cursor = jobsCollection.find();
+            const email = req.query.email;
+            let query = {};
+            if (email) {
+                query = { hr_email: email }
+            }
+            const cursor = jobsCollection.find(query);
             const result = await cursor.toArray();
             res.send(result);
         })
+        // now check http://localhost:5000/jobs to get all the data,
+        // http://localhost:5000/jobs?email=flower111@flower.com will give the data related to the hr.
+
+
 
         // get the individual data
         app.get('/jobs/:id', async (req, res) => {
@@ -67,7 +83,7 @@ async function run() {
         //     res.send(result);
         // })
 
-        // getting job applications with the email
+        // getting user's job applications with the email
         app.get('/job-applications', async (req, res) => {
             const email = req.query.email;
             const query = { applicant_email: email }
@@ -99,12 +115,64 @@ async function run() {
         })
 
         // post my job
-
         app.post('/job-applications', async (req, res) => {
             const application = req.body;
             const result = await jobApplicationCollection.insertOne(application);
+
+            // not the best way to send the job details(with job_id) with the application
+            // aggregate the data
+            const id = application.job_id;
+            const query = { _id: new ObjectId(id) }
+            const job = await jobsCollection.findOne(query);
+
+            let newCount = 0;
+            if (job.applicationCount) {
+                newCount = job.applicationCount + 1
+            } else {
+                newCount = 1
+            }
+
+            // now update the doc info
+            const filter = { _id: new ObjectId(id) }
+            const updatedDoc = {
+                $set: {
+                    applicationCount: newCount
+                }
+            }
+
+            const updatedResult = await jobsCollection.updateOne(filter, updatedDoc);
+
             res.send(result);
         })
+
+        // view who applied for my jobs
+        // app.get('/job-applications/:id') => get a specific job application by id
+        // but to view who applied for my jobs,
+        app.get('/job-applications/jobs/:job_id', async (req, res) => {
+            const jobId = req.params.job_id;
+            const query = { job_id: jobId }
+            const result = await jobApplicationCollection.find(query).toArray();
+            res.send(result)
+            // now check http://localhost:5000/job-applications/jobs/675d856b97a3ca475b9c6efd , here the id is job._id
+            // now set the loader in the frontend router
+        })
+
+        // partial update the status of the applied job in view applications
+        app.patch('/job-applications/:id', async (req, res) => {
+            const id = req.params.id;
+            const data = req.body;
+            const filter = { _id: new ObjectId(id) };
+            const updatedDoc = {
+                $set: {
+                    status: data.status
+                }
+            }
+            const result = await jobApplicationCollection.updateOne(filter, updatedDoc);
+            res.send(result)
+        })
+
+
+
 
     } finally {
         // Ensures that the client will close when you finish/error
