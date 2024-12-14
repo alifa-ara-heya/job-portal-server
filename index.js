@@ -67,7 +67,7 @@ async function run() {
             const result = await jobApplicationCollection.find(query).toArray();
 
             // fokira way to aggregate data 
-            // because you will not have all the job information here, just the job id;
+            // because you will not have all the job information here, just the job id, so we will loop;
             for (const application of result) {
                 // console.log(application.job_id);
                 const query = { _id: new ObjectId(application.job_id) }
