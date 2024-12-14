@@ -32,7 +32,7 @@ async function run() {
         console.log("Pinged your deployment. You successfully connected to MongoDB!");
 
 
-        // jobs related apis
+        // job related apis
         const jobsCollection = client.db('jobPortal').collection('jobs')
         const jobApplicationCollection = client.db('jobPortal').collection('job-applications')
 
@@ -49,6 +49,13 @@ async function run() {
             const query = { _id: new ObjectId(id) }
             const result = await jobsCollection.findOne(query);
             res.send(result)
+        })
+
+        // post job
+        app.post('/jobs', async (req, res) => {
+            const newJob = req.body;
+            const result = await jobsCollection.insertOne(newJob);
+            res.send(result);
         })
 
 
