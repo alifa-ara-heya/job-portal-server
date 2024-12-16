@@ -1,5 +1,7 @@
 const express = require('express');
 const cors = require('cors');
+const jwt = require('jsonwebtoken');
+const cookieParser = require('cookie-parser')
 const app = express();
 const port = process.env.PORT || 5000;
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
@@ -7,8 +9,34 @@ require('dotenv').config();
 
 
 //middleware
-app.use(cors());
+app.use(cors({
+    origin: ['http://localhost:5173'],
+    credentials: true,
+}));
 app.use(express.json());
+app.use(cookieParser());
+
+const logger = (req, res, next) => {
+    console.log('inside the logger');
+    next();
+}
+
+const verifyToken = (req, res, next) => {
+    // console.log('inside verify token');
+    const token = req?.cookies?.token;
+
+    if (!token) {
+        return res.status(401).send({ message: 'unauthorized access.' })
+    }
+
+    jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
+        if (err) {
+            return res.status(401).send({ message: 'unauthorized access.' })
+        }
+        req.user = decoded;
+        next();
+    })
+}
 
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASSWORD}@cluster0.kvlax.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
@@ -36,6 +64,21 @@ async function run() {
         const jobsCollection = client.db('jobPortal').collection('jobs')
         const jobApplicationCollection = client.db('jobPortal').collection('job-applications')
 
+        // auth related apis (JWT)
+        app.post('/jwt', async (req, res) => {
+            const user = req.body;
+            const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '1h' });
+            res
+                .cookie('token', token, {
+                    httpOnly: true,
+                    secure: false, //set true in production
+
+
+                })
+                .send({ success: true })
+        })
+
+
         // get the data
         // app.get('/jobs', async (req, res) => {
         //     const cursor = jobsCollection.find();
@@ -44,7 +87,8 @@ async function run() {
         // })
 
         // get jobs data conditionally, if there is an hr email, it will get you only the hr related jobs, otherwise you will get all the data
-        app.get('/jobs', async (req, res) => {
+        app.get('/jobs', logger, async (req, res) => {
+            console.log('now inside the api callback');
             const email = req.query.email;
             let query = {};
             if (email) {
@@ -84,9 +128,15 @@ async function run() {
         // })
 
         // getting user's job applications with the email
-        app.get('/job-applications', async (req, res) => {
+        app.get('/job-applications', verifyToken, async (req, res) => {
             const email = req.query.email;
             const query = { applicant_email: email }
+            // console.log('cuk cuk cookies', req.cookies);
+
+            if (req.user.email !== req.query.email) {
+                return res.status(403).send({ message: 'forbidden access.' });
+            }
+
             const result = await jobApplicationCollection.find(query).toArray();
 
             // fokira way to aggregate data 
